@@ -1,24 +1,19 @@
 import streamlit as st
 import pandas as pd
 import requests
-import dotenv
+import streamlit.components.v1 as components
 import os
-
+import dotenv
 dotenv.load_dotenv()
-
-# ================= CONFIG ================= #
-API_KEY = st.secrets["api"]["API_KEY"]
-API_URL = st.secrets["api"]["API_URL"]
-
+# ================= CONFIG =================
+API_KEY = os.environ.get('API_KEY')
+API_URL = os.environ.get('API_URL')
 GOAL = 5000
 
-# ================= SQL QUERY ================= #
-SQL_QUERY = """
-SELECT 
-    u.id AS user_id,
-    u.name AS name,
-    u.phone AS phone,
-    SUM(so.total) AS total_spent
+# ================= SQL QUERIES =================
+
+PHOENIX_QUERY = """
+SELECT u.id, u.name, u.phone, SUM(so.total) AS total_spent
 FROM store_orders so
 JOIN users u ON u.id = so.user_id
 WHERE u.id IN (
@@ -33,130 +28,130 @@ WHERE u.id IN (
 46384,45783,46432,45750,46267,46532,45981
 )
 GROUP BY u.id, u.name, u.phone
-ORDER BY total_spent DESC;
+ORDER BY total_spent;
 """
 
-# ================= API FETCH ================= #
+FRAZER_QUERY = f"""
+SELECT u.id, u.name, u.phone, SUM(so.total) AS total_spent
+FROM store_orders so
+JOIN users u ON u.id = so.user_id
+WHERE u.id IN (
+38419,44568,44603,42295,41912,39522,41313,41906,39468,44559,
+41901,43091,38794,39545,39535,43525,4837,42248,45836,37893,
+45543,33291,46455,45568,44522,40842,41746,46307,41816,42184,
+44974,44690,40504,42408,44341,42317,42153,46544,827,42155,
+41979,43795,41479,41514,39570,39539,40119,39476,42050,43361,
+39566,44577,39490,40896,39462,43621,44561,42614,39519,43870,
+39859,40871,46459,40395,45466,39591,39498,45644,44307,43136,
+46653,42705,46159,41533,40992,44720,45567,39632,41075,41539,
+45300,38522,40251,43766,43618,41454,44693,41770,42044,42437,
+40654,46749,45297,41825,42480,45809,41828,42791,43762,44772,
+41496,40498,40539,42188,41359,39915,45124,42315,40391,46644,
+39667,39775,44497,37612,43601,44106,42632,38586,41502,39692,
+44294,42129,44794,45105,43216,44494,42183,39518,40915,42229,
+44797,44606,44871,44014,39116,44604,46205,43721,39678,40815,
+43352,45036,40680,26374,42092,39970,44502,43845,41197,40997,
+45395,43768,44862,42414,45362,42206,39784,44213,33283,40727,
+41981,46619,44731,39885,42212,42097,39554,46648,41485,45738,
+32333,39484,41379,41175,46263,45375,43777,45517,44485,42316,
+45441,42605,43878,40687,41501,32507,44979,41523,42225,42011,
+44921,46393,42543,45474,37227,44576,42550,45152,42327,41796,
+45630,43912,42552,41690,42395,43844,39494,41590,39620,43622,
+45647,42357,42282,45999,39961,42880,42772,42250,46346,42185,
+42065,46347,39939,43910,41371,40339,44475,40794,45508,42009,
+46323,44551,42639,45525,43648,41079,43363,41526,46237,45882,
+26793,41483,42702,45539,45367,44524,42220,44059,43917,42707
+)
+GROUP BY u.id, u.name, u.phone
+ORDER BY total_spent;
+"""
+
+# ================= API FETCH =================
 @st.cache_data(ttl=600)
-def fetch_data():
-    headers = {
-        "Content-Type": "application/json",
-        "X-API-KEY": API_KEY
-    }
-    payload = {"query": SQL_QUERY}
-
-    res = requests.post(API_URL, json=payload, headers=headers)
+def fetch_data(query):
+    headers = {"Content-Type": "application/json", "X-API-KEY": API_KEY}
+    res = requests.post(API_URL, json={"query": query}, headers=headers)
     res.raise_for_status()
-    raw = res.json()
+    return pd.DataFrame(res.json()["data"])
 
-    # normalize JSON
-    if isinstance(raw, dict) and "data" in raw:
-        df = pd.DataFrame(raw["data"])
-    else:
-        df = pd.DataFrame(raw)
+# ================= UI STYLING =================
+st.set_page_config("Store Spend Dashboard", layout="wide")
+st.title("🏆 High Value User Spend Leaderboard")
 
-    # normalize column names
-    df.columns = [c.lower() for c in df.columns]
-
-    return df
-
-
-# ================= PREMIUM UI CSS ================= #
-st.markdown("""
+css = """
 <style>
-body { background-color: #020617; }
 .card {
-    padding: 14px;
-    border-radius: 14px;
-    background: #0f172a;
-    border: 1px solid #1e293b;
-    margin-bottom: 12px;
+    background:#0f172a;
+    padding:14px;
+    border-radius:14px;
+    margin-bottom:10px;
+    border:1px solid #1e293b;
+    color:white;
 }
 .bar-bg {
-    background: #1e293b;
-    border-radius: 10px;
-    height: 12px;
+    width:100%;
+    height:16px;
+    background:#111827;
+    border-radius:10px;
+    overflow:hidden;
 }
 .bar-fill {
-    height: 100%;
-    border-radius: 10px;
-    background: linear-gradient(90deg,#22c55e,#4ade80);
+    height:100%;
+    border-radius:10px;
 }
-.small-text {
-    color:#94a3b8;
+.small {
     font-size:12px;
+    color:#9ca3af;
 }
 </style>
-""", unsafe_allow_html=True)
+"""
+components.html(css, height=0)
 
+# ================= LEADERBOARD FUNCTION =================
+def render_leaderboard(df):
+    df = df.sort_values("total_spent")  # ascending
 
-# ================= PROGRESS UI FUNCTION ================= #
-def fancy_progress(name, phone, spent, goal=5000):
-    percent = min(spent / goal * 100, 100)
+    for rank, row in enumerate(df.itertuples(), start=1):
+        percent = min(row.total_spent / GOAL * 100, 100)
 
-    # Color logic
-    if spent >= goal:
-        color = "linear-gradient(90deg,#22c55e,#16a34a)"
-    elif spent >= goal * 0.5:
-        color = "linear-gradient(90deg,#facc15,#f97316)"
-    else:
-        color = "linear-gradient(90deg,#ef4444,#b91c1c)"
+        if percent < 50:
+            color = "#f97316"
+        elif percent < 100:
+            color = "#3b82f6"
+        else:
+            color = "#22c55e"
 
-    st.markdown(f"""
-    <div class="card">
-        <div style="display:flex;justify-content:space-between;">
-            <b style="color:white;">{name} | 📞 {phone}</b>
-            <span style="color:#38bdf8;">₹{spent:,.0f}</span>
+        html = f"""
+        <div class="card">
+            <b>#{rank} {row.name}</b> | 📞 {row.phone}<br>
+            <b>₹{row.total_spent:,.0f}</b>
+
+            <div class="bar-bg">
+                <div class="bar-fill" style="width:{percent}%; background:{color};"></div>
+            </div>
+
+            <div class="small" style="text-align:right;">
+                {percent:.1f}% of ₹{GOAL:,}
+            </div>
         </div>
+        """
+        components.html(html, height=120)
 
-        <div class="bar-bg" style="margin-top:8px;">
-            <div class="bar-fill" style="width:{percent}%;background:{color};"></div>
-        </div>
+# ================= TABS =================
+tab1, tab2 = st.tabs(["🏬 Phoenix Store", "🏬 Frazer Town Store"])
 
-        <div class="small-text" style="text-align:right;margin-top:4px;">
-            {percent:.1f}% of ₹{goal:,.0f}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+# -------- Phoenix --------
+with tab1:
+    st.subheader("Phoenix Store Users")
+    df_phoenix = fetch_data(PHOENIX_QUERY)
+    st.metric("Total Users", len(df_phoenix))
+    st.metric("Total Revenue", f"₹{df_phoenix.total_spent.sum():,.0f}")
+    render_leaderboard(df_phoenix)
 
-
-# ================= STREAMLIT UI ================= #
-st.set_page_config(page_title="User Spend Dashboard", layout="wide")
-st.title("💰 High Value Users Spend Dashboard")
-
-# Fetch data
-df = fetch_data()
-
-# Debug panel
-with st.expander("🔍 Debug"):
-    st.write(df.head())
-    st.write(df.columns)
-
-# Safety check
-if "total_spent" not in df.columns:
-    st.error(f"Column total_spent missing. Found: {df.columns.tolist()}")
-    st.stop()
-
-# Convert spend to numeric
-df["total_spent"] = pd.to_numeric(df["total_spent"], errors="coerce").fillna(0)
-
-# Metrics
-st.metric("Total Users", len(df))
-st.metric("Total Revenue", f"₹{df['total_spent'].sum():,.0f}")
-
-st.divider()
-
-# Table
-st.subheader("📊 User Spend Table")
-st.dataframe(df.sort_values("total_spent", ascending=False), use_container_width=True)
-
-st.divider()
-
-# Leaderboard Progress UI
-st.subheader("🏆 Progress to ₹5,000 Goal (Leaderboard)")
-
-df = df.sort_values("total_spent", ascending=False).reset_index(drop=True)
-
-for i, r in df.iterrows():
-    rank = i + 1
-    fancy_progress(f"#{rank} {r['name']}", r.get("phone", "NA"), r["total_spent"])
+# -------- Frazer Town --------
+with tab2:
+    st.subheader("Frazer Town Store Users")
+    df_frazer = fetch_data(FRAZER_QUERY)
+    st.metric("Total Users", len(df_frazer))
+    st.metric("Total Revenue", f"₹{df_frazer.total_spent.sum():,.0f}")
+    render_leaderboard(df_frazer)
