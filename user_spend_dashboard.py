@@ -1,19 +1,7 @@
-import streamlit as st
-import pandas as pd
-import requests
-import streamlit.components.v1 as components
-import os
-import dotenv
-dotenv.load_dotenv()
-# ================= CONFIG =================
-API_KEY = os.environ.get('API_KEY')
-API_URL = os.environ.get('API_URL')
-GOAL = 5000
+
 
 # ================= SQL QUERIES =================
-
-PHOENIX_QUERY = """
-SELECT u.id, u.name, u.phone, SUM(so.total) AS total_spent
+PHOENIX_QUERY = """SELECT u.id, u.name, u.phone, SUM(so.total) AS total_spent
 FROM store_orders so
 JOIN users u ON u.id = so.user_id
 WHERE u.id IN (
@@ -28,11 +16,8 @@ WHERE u.id IN (
 46384,45783,46432,45750,46267,46532,45981
 )
 GROUP BY u.id, u.name, u.phone
-ORDER BY total_spent;
-"""
-
-FRAZER_QUERY = f"""
-SELECT u.id, u.name, u.phone, SUM(so.total) AS total_spent
+ORDER BY total_spent;"""
+FRAZER_QUERY = """SELECT u.id, u.name, u.phone, SUM(so.total) AS total_spent
 FROM store_orders so
 JOIN users u ON u.id = so.user_id
 WHERE u.id IN (
@@ -63,95 +48,79 @@ WHERE u.id IN (
 26793,41483,42702,45539,45367,44524,42220,44059,43917,42707
 )
 GROUP BY u.id, u.name, u.phone
-ORDER BY total_spent;
-"""
+ORDER BY total_spent;"""
+import streamlit as st
+import pandas as pd
+import requests
+import os
+import dotenv
 
-# ================= API FETCH =================
+dotenv.load_dotenv()
+
+# ================= CONFIG ================= #
+API_KEY = st.secrets["api"]["API_KEY"]
+API_URL = st.secrets["api"]["API_URL"]
+
+PHOENIX_GOAL = 5000
+FRAZER_GOAL = 10000
+
+# ================= FETCH FUNCTION =================
 @st.cache_data(ttl=600)
 def fetch_data(query):
-    headers = {"Content-Type": "application/json", "X-API-KEY": API_KEY}
+    headers = {
+        "Content-Type": "application/json",
+        "X-API-KEY": API_KEY
+    }
     res = requests.post(API_URL, json={"query": query}, headers=headers)
     res.raise_for_status()
     return pd.DataFrame(res.json()["data"])
 
-# ================= UI STYLING =================
+# ================= UI =================
 st.set_page_config("Store Spend Dashboard", layout="wide")
-st.title("🏆 High Value User Spend Leaderboard")
-
-css = """
-<style>
-.card {
-    background:#0f172a;
-    padding:14px;
-    border-radius:14px;
-    margin-bottom:10px;
-    border:1px solid #1e293b;
-    color:white;
-}
-.bar-bg {
-    width:100%;
-    height:16px;
-    background:#111827;
-    border-radius:10px;
-    overflow:hidden;
-}
-.bar-fill {
-    height:100%;
-    border-radius:10px;
-}
-.small {
-    font-size:12px;
-    color:#9ca3af;
-}
-</style>
-"""
-components.html(css, height=0)
+st.title("💰 User Spend Dashboard")
 
 # ================= LEADERBOARD FUNCTION =================
-def render_leaderboard(df):
-    df = df.sort_values("total_spent")  # ascending
+def render_progress(df, GOAL):
+    df = df.sort_values("total_spent")  # ASCENDING
 
-    for rank, row in enumerate(df.itertuples(), start=1):
-        percent = min(row.total_spent / GOAL * 100, 100)
+    for _, row in df.iterrows():
+        spent = float(row["total_spent"] or 0)
+        progress = min(spent / GOAL, 1.0)
 
-        if percent < 50:
-            color = "#f97316"
-        elif percent < 100:
-            color = "#3b82f6"
-        else:
-            color = "#22c55e"
+        col1, col2, col3 = st.columns([3, 2, 2])
+        col1.markdown(f"**{row['name']}**")
+        col2.markdown(f"📞 `{row['phone']}`")
+        col3.markdown(f"₹ **{spent:,.0f}**")
 
-        html = f"""
-        <div class="card">
-            <b>#{rank} {row.name}</b> | 📞 {row.phone}<br>
-            <b>₹{row.total_spent:,.0f}</b>
-
-            <div class="bar-bg">
-                <div class="bar-fill" style="width:{percent}%; background:{color};"></div>
-            </div>
-
-            <div class="small" style="text-align:right;">
-                {percent:.1f}% of ₹{GOAL:,}
-            </div>
-        </div>
-        """
-        components.html(html, height=120)
+        st.progress(progress)
+        st.caption(f"{progress*100:.1f}% of ₹{GOAL:,}")
+        st.divider()
 
 # ================= TABS =================
 tab1, tab2 = st.tabs(["🏬 Phoenix Store", "🏬 Frazer Town Store"])
 
-# -------- Phoenix --------
+# -------- Phoenix Store --------
 with tab1:
     st.subheader("Phoenix Store Users")
-    df_phoenix = fetch_data(PHOENIX_QUERY)
-    st.metric("Total Users", len(df_phoenix))
-    st.metric("Total Revenue", f"₹{df_phoenix.total_spent.sum():,.0f}")
-    render_leaderboard(df_phoenix)
 
-# -------- Frazer Town --------
+    df_phoenix = fetch_data(PHOENIX_QUERY)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Users", len(df_phoenix))
+    col2.metric("Total Revenue", f"₹{df_phoenix.total_spent.sum():,.0f}")
+    col3.metric("Goal", f"₹{PHOENIX_GOAL:,}")
+
+    render_progress(df_phoenix, PHOENIX_GOAL)
+
+# -------- Frazer Town Store --------
 with tab2:
     st.subheader("Frazer Town Store Users")
+
     df_frazer = fetch_data(FRAZER_QUERY)
-    st.metric("Total Users", len(df_frazer))
-    st.metric("Total Revenue", f"₹{df_frazer.total_spent.sum():,.0f}")
-    render_leaderboard(df_frazer)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Users", len(df_frazer))
+    col2.metric("Total Revenue", f"₹{df_frazer.total_spent.sum():,.0f}")
+    col3.metric("Goal", f"₹{FRAZER_GOAL:,}")
+
+    render_progress(df_frazer, FRAZER_GOAL)
