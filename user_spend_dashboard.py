@@ -5,8 +5,8 @@ import dotenv
 import os
 dotenv.load_dotenv()
 
-API_URL = os.environ.get("API_URL")
-API_KEY = os.environ.get("API_KEY")
+API_KEY = st.secrets["api"]["API_KEY"]
+API_URL = st.secrets["api"]["API_URL"]
 
 GOAL = 5000
 
