@@ -14,6 +14,7 @@ SQL_QUERY = """
 SELECT 
     u.id,
     u.name,
+    u.phone,
     SUM(so.total) AS total_spent
 FROM store_orders so
 JOIN users u ON u.id = so.user_id
