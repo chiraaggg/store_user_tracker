@@ -30,7 +30,7 @@ WHERE u.id IN (
 46384,45783,46432,45750,46267,46532,45981
 )
 GROUP BY u.id, u.name
-ORDER BY total_spent DESC;
+ORDER BY total_spent;
 """
 
 @st.cache_data(ttl=600)
