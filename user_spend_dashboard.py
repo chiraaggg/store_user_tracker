@@ -57,6 +57,36 @@ import dotenv
 
 dotenv.load_dotenv()
 
+# ================= AUTH SYSTEM =================
+
+def login():
+    st.title("🔐 Login Required")
+
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        users = st.secrets["auth"]["users"]
+
+        if username in users and password == users[username]:
+            st.session_state["authenticated"] = True
+            st.session_state["user"] = username
+            st.success("Logged in successfully!")
+            st.rerun()
+        else:
+            st.error("Invalid username or password")
+
+
+# Initialize session
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+# Show login screen
+if not st.session_state["authenticated"]:
+    login()
+    st.stop()
+
+
 # ================= CONFIG ================= #
 API_KEY = st.secrets["api"]["API_KEY"]
 API_URL = st.secrets["api"]["API_URL"]
